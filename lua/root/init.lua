@@ -27,9 +27,10 @@ M.detectors = {
   --- ```lua
   --- M.detectors.cwd() -- { "/Users/flashios09/.config/nvim/" }
   --- ```
+  ---@param buffer? number|nil The `buffer`, e.g. `1`.
   ---@return table<string|nil> A table with the current working directory, `nil` otherwise.
-  cwd = function()
-    return { vim.uv.cwd() }
+  cwd = function(buffer)
+    return { M.cwd(buffer) }
   end,
 
   --- Detect the root from lsp.
@@ -144,9 +145,29 @@ end
 
 --- Get the current working directory.
 ---
+---@param buffer? number|nil The `buffer`, e.g. `1`.
 ---@return string The current working directory.
-function M.cwd()
-  return M.realpath(vim.uv.cwd()) or ""
+function M.cwd(buffer)
+  buffer = (buffer == nil or buffer == 0) and vim.api.nvim_get_current_buf() or buffer
+  local cwd = nil
+  local vim_cwd = vim.uv.cwd()
+  local root = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(assert(buffer)), ":h")
+
+  if root == vim_cwd then
+    -- root is vim_cwd
+    cwd = vim_cwd
+  elseif vim_cwd and root:find(vim_cwd, 1, true) == 1 then
+    -- root is subdirectory of vim_cwd
+    cwd = vim_cwd
+  elseif vim_cwd and vim_cwd:find(root, 1, true) == 1 then
+    -- root is parent directory of vim_cwd
+    cwd = root
+  else
+    -- root and cwd are not related
+    cwd = root
+  end
+
+  return M.realpath(cwd) or ""
 end
 
 --- Get the buffer path.
@@ -190,8 +211,8 @@ end
 --- M.norm("~/.config/nvim/") -- `"/Users/flashios09/.config/nvim/"`
 --- M.norm("C:\.config\nvim\") -- `"C:/.config/nvim/"`
 --- ```
----@param path string The buffer path, e.g. `"/Users/flashios09/.config/nvim/"`.
----@return string The normalizez buffer path, e.g. `TODO`
+---@param path string The buffer path, e.g. `"~/.config/nvim/"`.
+---@return string The normalized buffer path, e.g. `"/Users/flashios09/.config/nvim/"`
 function M.norm(path)
   if path:sub(1, 1) == "~" then
     local home = vim.uv.os_homedir()
